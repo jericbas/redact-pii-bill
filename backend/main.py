@@ -3,52 +3,30 @@ from fastapi.responses import FileResponse
 import shutil
 import os
 from typing import List
-from presidio_analyzer import AnalyzerEngine
-from presidio_anonymizer import AnonymizerEngine
-import pytesseract
-from pdf2image import convert_from_bytes
+from backend.pii_processor import redact_text
 from dotenv import load_dotenv
 
 load_dotenv()
 
-app = FastAPI()
-analyzer_engines = AnalyzerEngine()
-anonymizer_engines = AnonymizerEngine()
+app = FastAPI(title="Redact PII Bill API")
 
 OUTPUT_DIR = "redacted_outputs"
 if not os.path.exists(OUTPUT_DIR):
     os.makedirs(OUTPUT_DIR)
 
+@app.get("/")
+async def root():
+    return {"message": "Redact PII Bill API is running"}
+
 @app.post("/redact")
-async def redact_document(file: UploadFile = File(...)):
-    content = await file.read()
+async def redact_pii(text_data: dict):
+    # Supporting a simple JSON text input first for testing the logic
+    text = text_data.get("text", "")
+    if not text:
+        return {"error": "No text provided"}
     
-    # Simple logic for now: treat everything as text
-    # In a real app, we'd handle PDF vs Image differently
-    if file.filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-        text = pytesseract.image_to_string(content)
-    else:
-        # Basic PDF text extraction for now
-        images = convert_from_bytes(content)
-        text = ""
-        for img in images:
-            text += pytesseract.image_to_string(img)
-
-    # Analyze PII
-    results = analyzer_engines.analyze(text=text, entities=["PERSON", "LOCATION", "EMAIL_ADDRESS", "PHONE_NUMBER", "IBAN", "CREDIT_CARD"], language='en')
-    
-    # Anonymize
-    anonymized_result = anonymizer_engines.anonymize(text=text, analyzer_results=results)
-    redacted_text = anonymized_result.text
-
-    # Save output
-    output_filename = f"redacted_{file.filename}"
-    output_path = os.path.join(OUTPUT_DIR, output_filename)
-    
-    with open(output_path, "w") as f:
-        f.write(redacted_text)
-
-    return {"message": "Success", "redacted_text": redacted_text, "path": output_path}
+    redacted_text = redact_text(text)
+    return {"original": text, "redacted": redacted_text}
 
 if __name__ == "__main__":
     import uvicorn
