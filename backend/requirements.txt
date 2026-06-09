@@ -1,8 +1,10 @@
 fastapi
 uvicorn
+python-multipart
 presidio-analyzer
 presidio-anonymizer
+spacy
 pytesseract
 pdf2image
-python-multipart
-spacy
+Pillow
+python-dotenv
